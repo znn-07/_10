@@ -7,11 +7,15 @@
  * Computes the sum of two bits.
  */
 
+// Half Adder: sum = A XOR B, carry = A AND B
+
 CHIP HalfAdder {
     IN a, b;    // 1-bit inputs
-    OUT sum,    // Right bit of a + b 
-        carry;  // Left bit of a + b
+    OUT sum,    // 本位的和
+        carry;  // 進位到高位
 
     PARTS:
-    // Put you code here:
+    // Put your code here:
+    Xor(a=a, b=b, out=sum);
+    And(a=a, b=b, out=carry);
 }
