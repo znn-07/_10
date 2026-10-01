@@ -14,5 +14,8 @@ CHIP Bit {
     OUT out;
 
     PARTS:
-    // Put your code here:
+    // 1. Mux 根據 load 決定選擇新的輸入 in 或舊的輸出 dff_out
+    Mux(a=dffOut, b=in, sel=load, out=muxOut);
+    // 2. DFF 鎖存 Mux 的輸出，並同時給出晶片最終 out 與內部反饋 dff_out
+    DFF(in=muxOut, out=dffOut, out=out);
 }
