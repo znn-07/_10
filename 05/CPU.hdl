@@ -39,5 +39,85 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+    // ------------------------------------------------------------------------
+    // 1. 指令解碼 (Instruction Decoding)
+    // ------------------------------------------------------------------------
+    // instruction[15] 為 0 代表 A-instruction，為 1 代表 C-instruction
+    Not(in=instruction[15], out=isAInstruction);
+    Not(in=isAInstruction, out=isCInstruction);
+
+    // C-instruction 的 d1, d2, d3 對應 instruction[5], instruction[4], instruction[3] (dest)
+    // d1 (instruction[5]) -> 存入 A 暫存器
+    // d2 (instruction[4]) -> 存入 D 暫存器
+    // d3 (instruction[3]) -> 寫入記憶體 M (writeM)
+    
+    // 如果是 A-instruction，我們一定要把指令載入 A 暫存器；
+    // 如果是 C-instruction 且 dest 包含了 A (instruction[5]==1)，也要載入 A 暫存器。
+    And(a=isCInstruction, b=instruction[5], out=isCAndDestA);
+    Or(a=isAInstruction, b=isCAndDestA, out=loadA);
+
+    // ------------------------------------------------------------------------
+    // 2. A 暫存器 (A-Register)
+    // ------------------------------------------------------------------------
+    // 如果是 A-instruction，輸入是 instruction 本身；如果是 C-instruction，輸入是 ALU 的輸出 (aluOut)
+    Mux16(a=instruction, b=aluOut, sel=isCInstruction, out=aRegIn);
+    ARegister(in=aRegIn, load=loadA, out=aRegOut, out[0..14]=addressM);
+
+    // ------------------------------------------------------------------------
+    // 3. 決定 ALU 的第二個運算元 (A 或 M)
+    // ------------------------------------------------------------------------
+    // C-instruction 的 a-bit 是 instruction[12]。若 a=0 選擇 A，若 a=1 選擇 inM
+    Mux16(a=aRegOut, b=inM, sel=instruction[12], out=aOrMOut);
+
+    // ------------------------------------------------------------------------
+    // 4. D 暫存器 (D-Register)
+    // ------------------------------------------------------------------------
+    // 當是 C-instruction 且 dest 包含了 D (instruction[4]==1) 時載入
+    And(a=isCInstruction, b=instruction[4], out=loadD);
+    DRegister(in=aluOut, load=loadD, out=dRegOut);
+
+    // ------------------------------------------------------------------------
+    // 5. ALU 運算單元
+    // ------------------------------------------------------------------------
+    // instruction[6..11] 分別對應 ALU 的 zx, nx, zy, ny, f, no 控制位元
+    ALU(x=dRegOut, y=aOrMOut, 
+        zx=instruction[11], 
+        nx=instruction[10], 
+        zy=instruction[9], 
+        ny=instruction[8], 
+        f=instruction[7], 
+        no=instruction[6], 
+        out=aluOut, 
+        out=outM, 
+        zr=isZero, 
+        ng=isNeg);
+
+    // 輸出 writeM：必須是 C-instruction 且 d3 (instruction[3]) 為 1
+    And(a=isCInstruction, b=instruction[3], out=writeM);
+
+    // ------------------------------------------------------------------------
+    // 6. 程式計數器與跳躍邏輯 (PC & Jump Logic)
+    // ------------------------------------------------------------------------
+    // 解析跳躍條件 (j1, j2, j3 分別對應 instruction[2], instruction[1], instruction[0])
+    // lt (小於 0): ng == 1
+    // eq (等於 0): zr == 1
+    // gt (大於 0): ng == 0 且 zr == 0
+    
+    Not(in=isNeg, out=isNotNeg);
+    Not(in=isZero, out=isNotZero);
+    And(a=isNotNeg, b=isNotZero, out=isPos);
+
+    // 檢查各種 Jump 條件是否成立
+    And(a=isNeg, b=instruction[2], out=jumpLT);
+    And(a=isZero, b=instruction[1], out=jumpEQ);
+    And(a=isPos, b=instruction[0], out=jumpGT);
+
+    Or(a=jumpLT, b=jumpEQ, out=jumpLE);
+    Or(a=jumpLE, b=jumpGT, out=jumpConditionsMet);
+
+    // 只有在「是 C-instruction」且「符合跳躍條件」時，PC 才會跳到 A 暫存器指向的位址
+    And(a=isCInstruction, b=jumpConditionsMet, out=pcJump);
+
+    // 如果沒有跳躍，PC 則遞增 (inc=true)；如果有重置 (reset=1)，最高優先權重置為 0
+    PC(in=aRegOut, load=pcJump, inc=true, reset=reset, out[0..14]=pc);
 }

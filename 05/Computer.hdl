@@ -19,5 +19,21 @@ CHIP Computer {
     IN reset;
 
     PARTS:
-    // Put your code here:
+    // 1. 從 ROM 讀取目前 PC 指令
+    ROM32K(address=pc, out=instruction);
+
+    // 2. CPU 晶片運算
+    CPU(inM=memOut, 
+        instruction=instruction, 
+        reset=reset, 
+        outM=outM, 
+        writeM=writeM, 
+        addressM=ramAddress, // 將 CPU 的 addressM 輸出直接接至 15-bit 的 ramAddress
+        pc=pc);
+
+    // 3. 記憶體（整合 RAM、Screen、Keyboard）
+    Memory(in=outM, 
+           load=writeM, 
+           address=ramAddress, // 直接使用 15-bit 的 ramAddress，不需要寫成 [0..14]
+           out=memOut);
 }

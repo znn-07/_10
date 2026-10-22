@@ -27,5 +27,34 @@ CHIP Memory {
     OUT out[16];
 
     PARTS:
-    // Put your code here:
+    // ------------------------------------------------------------------------
+    // 1. 寫入控制信號分派 (Load Demultiplexing)
+    // ------------------------------------------------------------------------
+    // address[14] 決定是 RAM16K (0) 還是 Screen/Keyboard 區段 (1)
+    DMux(in=load, sel=address[14], a=loadRAM, b=loadScreenAndKeyboard);
+
+    // 在 Screen/Keyboard 區段中，address[13] 決定是 Screen (0) 還是 Keyboard (1)
+    // 注意：Keyboard 是唯讀的，因此即使 load 為 1 也不能寫入 Keyboard。
+    DMux(in=loadScreenAndKeyboard, sel=address[13], a=loadScreen, b=loadKeyboardDummy);
+
+    // ------------------------------------------------------------------------
+    // 2. 記憶體與周邊晶片實例
+    // ------------------------------------------------------------------------
+    // RAM16K 接收 14-bit 位址 (address[0..13])
+    RAM16K(in=in, load=loadRAM, address=address[0..13], out=ramOut);
+
+    // Screen 接收 13-bit 位址 (address[0..12])
+    Screen(in=in, load=loadScreen, address=address[0..12], out=screenOut);
+
+    // Keyboard 不需要輸入與位址，直接讀取當前鍵盤狀態
+    Keyboard(out=keyOut);
+
+    // ------------------------------------------------------------------------
+    // 3. 讀取輸出多工選擇 (Output Multiplexing)
+    // ------------------------------------------------------------------------
+    // 先用 address[13] 選擇要輸出 Screen 還是 Keyboard 的資料
+    Mux16(a=screenOut, b=keyOut, sel=address[13], out=screenOrKeyOut);
+
+    // 再用 address[14] 選擇要輸出 RAM16K 的資料還是周邊 (Screen/Keyboard) 的資料
+    Mux16(a=ramOut, b=screenOrKeyOut, sel=address[14], out=out);
 }
